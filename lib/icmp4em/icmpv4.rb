@@ -85,9 +85,8 @@ module ICMP4EM
     # Expire a sequence number from the waiting queue.
     # Should only be called by the timer setup in #ping or the rescue Exception in #ping_send.
     def expire(seq, exception = nil)
-      waiting = @waiting[seq]
+      waiting = @waiting.delete(seq)
       if waiting
-        @waiting[seq] = nil
         adjust_failure_count(:down) if @stateful
         expiry(seq, exception)
         check_for_fail_or_recover if @stateful
@@ -102,7 +101,7 @@ module ICMP4EM
         adjust_failure_count(:up) if @stateful
         success(seq, latency)
         check_for_fail_or_recover if @stateful
-        @waiting[seq] = nil
+        @waiting.delete(seq)
       end
     end
 

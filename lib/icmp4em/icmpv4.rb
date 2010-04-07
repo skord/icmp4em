@@ -6,7 +6,8 @@ module ICMP4EM
     include HostCommon
     
     @instances = {}
-    @recvsocket = nil
+    @recvsocket = {}
+    @handler = {}
     
     class << self
       
@@ -42,7 +43,7 @@ module ICMP4EM
       @interval   =   options[:interval] || 1
       @timeout    =   options[:timeout] || 1
       @stateful   =   options[:stateful] || false
-      @bind_host  =   options[:bind_host] || nil
+      @bind_host  =   options[:bind_host] || '*'
       @block      =   options[:block] || false
       @recoveries_required = options[:recoveries_required] || 5
       @failures_required   = options[:failures_required] || 5
@@ -64,7 +65,7 @@ module ICMP4EM
     # Send the echo request to @host and add sequence number to the waiting queue.
     def ping
       raise "EM not running" unless EM.reactor_running?
-      init_handler if self.class.recvsocket.nil?
+      init_handler if self.recvsocket.nil?
       @seq = ping_send
       if @block
         blocking_receive
@@ -79,8 +80,16 @@ module ICMP4EM
       raise "EM not running" unless EM.reactor_running?
       @ptimer = EM::PeriodicTimer.new(@interval) { self.ping }
     end
+    
+    def recvsocket
+      self.class.recvsocket[@bind_host]
+    end
+    
+    def handler
+      self.class.handler[@bind_host]
+    end
 
-    private
+  private
 
     # Expire a sequence number from the waiting queue.
     # Should only be called by the timer setup in #ping or the rescue Exception in #ping_send.
@@ -109,7 +118,7 @@ module ICMP4EM
     def ping_send
       seq = (@seq + 1) % 65536
 
-      socket = self.class.recvsocket
+      socket = self.recvsocket
 
       # Generate msg with checksum
       msg = [ICMP_ECHO, ICMP_SUBCODE, 0, @id, seq, @data].pack("C2 n3 A*")
@@ -132,17 +141,17 @@ module ICMP4EM
     end
 
     # Initialize the receiving socket and handler for incoming ICMP packets.
-    def init_handler
-      self.class.recvsocket = Socket.new(
+    def init_handler()
+      self.class.recvsocket[@bind_host] = Socket.new(
       Socket::PF_INET,
       Socket::SOCK_RAW,
       Socket::IPPROTO_ICMP
       )
-      if @bind_host
+      if @bind_host != "*"
         saddr = Socket.pack_sockaddr_in(0, @bind_host)
-        self.class.recvsocket.bind(saddr)
+        self.recvsocket.bind(saddr)
       end
-      self.class.handler = EM.attach self.class.recvsocket, Handler, self.class.recvsocket
+      self.class.handler = EM.watch(self.recvsocket, Handler, self.recvsocket){ |c| c.notify_readable = true }
     end
 
     # Sets the instance id to a unique 16 bit integer so it can fit inside relevent the ICMP field.
@@ -158,10 +167,10 @@ module ICMP4EM
     end
     
     def blocking_receive
-      r = select([self.class.recvsocket], nil, nil, @timeout)
+      r = select([self.recvsocket], nil, nil, @timeout)
       
-      if r and r.first.include?(self.class.recvsocket)
-        self.class.handler.notify_readable
+      if r and r.first.include?(self.recvsocket)
+        self.handler.notify_readable
       else
         expire(@seq, Timeout.new("Ping timed out"))
       end

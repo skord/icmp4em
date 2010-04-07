@@ -59,7 +59,7 @@ module ICMP4EM
     # an ICMP echo comes in. Also cancels the periodic timer. Better way to do this whole thing?...
     def stop
       @ptimer.cancel if @ptimer
-      self.class.instances[@id] = nil
+      self.class.instances.delete(@id)
     end
 
     # Send the echo request to @host and add sequence number to the waiting queue.

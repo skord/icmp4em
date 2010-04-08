@@ -151,7 +151,12 @@ module ICMP4EM
         saddr = Socket.pack_sockaddr_in(0, @bind_host)
         self.recvsocket.bind(saddr)
       end
-      self.class.handler = EM.watch(self.recvsocket, Handler, self.recvsocket){ |c| c.notify_readable = true }
+      
+      if EM.respond_to?(:watch)
+        self.class.handler = EM.watch(self.recvsocket, Handler, self.recvsocket){ |c| c.notify_readable = true }
+      else
+        self.class.handler = EM.attach(self.recvsocket, Handler, self.recvsocket)
+      end
     end
 
     # Sets the instance id to a unique 16 bit integer so it can fit inside relevent the ICMP field.

@@ -1,7 +1,6 @@
 Gem::Specification.new do |s|
   s.name = "icmp4em"
   s.version = "0.0.2"
-  s.date = "2009-04-3"
   s.authors = ["Jake Douglas"]
   s.email = "jakecdouglas@gmail.com"
   s.rubyforge_project = "icmp4em"
